@@ -40,127 +40,154 @@
             <input type="hidden" id="passengerID">
             
             <label for="firstName">First Name:</label>
-            <input type="text" id="firstName" name="firstName" required><br><br>
+            <input type="text" id="firstName" required><br><br>
 
             <label for="lastName">Last Name:</label>
-            <input type="text" id="lastName" name="lastName" required><br><br>
+            <input type="text" id="lastName" required><br><br>
 
             <label for="birthDate">Birth Date:</label>
-            <input type="date" id="birthDate" name="birthDate" required><br><br>
+            <input type="date" id="birthDate" required><br><br>
 
             <label for="passportNum">Passport Number:</label>
-            <input type="text" id="passportNum" name="passportNum" required><br><br>
+            <input type="text" id="passportNum" required><br><br>
 
             <label for="phoneNumber">Phone Number:</label>
-            <input type="text" id="phoneNumber" name="phoneNumber" required><br><br>
+            <input type="text" id="phoneNumber" required><br><br>
 
             <button type="submit">Save</button>
         </form>
     </section>
 
     <script>
-        // Fetch and display all passengers
         async function fetchPassengers() {
-            const response = await fetch('/passengers');
-            const passengers = await response.json();
+            try {
+                const response = await fetch('/passengers');
+                if (!response.ok) throw new Error('Failed to fetch passengers');
+                const passengers = await response.json();
 
-            const tableBody = document.getElementById('passengerTableBody');
-            tableBody.innerHTML = '';
+                const tableBody = document.getElementById('passengerTableBody');
+                tableBody.innerHTML = '';
 
-            passengers.forEach(passenger => {
-                const row = `<tr>
-                    <td>${passenger.passengerID}</td>
-                    <td>${passenger.firstName}</td>
-                    <td>${passenger.lastName}</td>
-                    <td>${passenger.birthDate}</td>
-                    <td>${passenger.passportNum}</td>
-                    <td>${passenger.phoneNumber}</td>
-                    <td>
-                        <button onclick="editPassenger(${passenger.passengerID})">Update</button>
-                        <button onclick="deletePassenger(${passenger.passengerID})">Delete</button>
-                    </td>
-                </tr>`;
-                tableBody.innerHTML += row;
-            });
+                passengers.forEach(passenger => {
+                    const formattedBirthDate = passenger.birthDate 
+                        ? new Date(passenger.birthDate).toISOString().split('T')[0] 
+                        : '';
+
+                    const row = `<tr>
+                        <td>${passenger.passengerID}</td>
+                        <td>${passenger.firstName}</td>
+                        <td>${passenger.lastName}</td>
+                        <td>${formattedBirthDate}</td>
+                        <td>${passenger.passportNum}</td>
+                        <td>${passenger.phoneNumber}</td>
+                        <td>
+                            <button onclick="editPassenger(${passenger.passengerID})">Update</button>
+                            <button onclick="deletePassenger(${passenger.passengerID})">Delete</button>
+                        </td>
+                    </tr>`;
+                    tableBody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error('Error fetching passengers:', error);
+                alert("Failed to load passenger data.");
+            }
         }
 
-        // Edit passenger and fill form
         async function editPassenger(id) {
-            const response = await fetch(`/passengers`);
-            const passengers = await response.json();
-            const passenger = passengers.find(p => p.passengerID === id);
+            console.log("Fetching passenger with ID:", id);
+            try {
+                const response = await fetch(`/passengers/${id}`);
+                console.log("Response status:", response.status);
 
-            document.getElementById("passengerID").value = id;
-            document.getElementById("firstName").value = passenger.firstName;
-            document.getElementById("lastName").value = passenger.lastName;
-            document.getElementById("birthDate").value = passenger.birthDate;
-            document.getElementById("passportNum").value = passenger.passportNum;
-            document.getElementById("phoneNumber").value = passenger.phoneNumber;
+                if (!response.ok) {
+                    alert('Passenger not found!');
+                    return;
+                }
+
+                const passenger = await response.json();
+                console.log("Passenger data received:", passenger);
+
+                document.getElementById("passengerID").value = passenger.passengerID;
+                document.getElementById("firstName").value = passenger.firstName;
+                document.getElementById("lastName").value = passenger.lastName;
+                document.getElementById("birthDate").value = passenger.birthDate 
+                    ? new Date(passenger.birthDate).toISOString().split('T')[0] 
+                    : '';
+                document.getElementById("passportNum").value = passenger.passportNum;
+                document.getElementById("phoneNumber").value = passenger.phoneNumber;
+            } catch (error) {
+                console.error('Error editing passenger:', error);
+                alert("Failed to load passenger details.");
+            }
         }
 
-        // Save or update passenger (depending on if passengerID is present)
         document.getElementById("passengerForm").addEventListener("submit", async function(e) {
             e.preventDefault();
 
             const passengerID = document.getElementById("passengerID").value;
-            const firstName = document.getElementById("firstName").value;
-            const lastName = document.getElementById("lastName").value;
-            const birthDate = document.getElementById("birthDate").value;
-            const passportNum = document.getElementById("passportNum").value;
-            const phoneNumber = document.getElementById("phoneNumber").value;
-
             const passengerData = {
-                firstName,
-                lastName,
-                birthDate,
-                passportNum,
-                phoneNumber
+                firstName: document.getElementById("firstName").value,
+                lastName: document.getElementById("lastName").value,
+                birthDate: document.getElementById("birthDate").value,
+                passportNum: document.getElementById("passportNum").value,
+                phoneNumber: document.getElementById("phoneNumber").value
             };
 
-            let response;
-            if (passengerID) {
-                // If passengerID exists, update the passenger
-                response = await fetch(`/passengers/${passengerID}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(passengerData)
-                });
-            } else {
-                // If passengerID does not exist, create a new passenger
-                response = await fetch('/passengers', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(passengerData)
-                });
-            }
+            console.log("Submitting update for Passenger ID:", passengerID);
+            console.log("Data sent to server:", passengerData);
 
-            if (response.ok) {
-                fetchPassengers(); // Refresh the table
-                document.getElementById("passengerForm").reset(); // Reset form
-            } else {
-                alert("Failed to save passenger.");
+            try {
+                let response;
+                if (passengerID) {
+                    response = await fetch(`/passengers/${passengerID}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(passengerData)
+                    });
+                } else {
+                    response = await fetch('/passengers', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(passengerData)
+                    });
+                }
+
+                const result = await response.json();
+                console.log("Response from server:", result);
+
+                if (response.ok) {
+                    console.log("Passenger updated successfully! Refreshing list...");
+                    await fetchPassengers(); // ✅ Refresh the table
+                    document.getElementById("passengerForm").reset();
+                    document.getElementById("passengerID").value = ''; // Reset after update
+                } else {
+                    alert("Failed to save passenger: " + result.error);
+                }
+            } catch (error) {
+                console.error('Error saving passenger:', error);
+                alert("Error while saving passenger.");
             }
         });
 
-        // Delete passenger
         async function deletePassenger(id) {
-            const response = await fetch(`/passengers/${id}`, {
-                method: 'DELETE',
-            });
+            if (!confirm("Are you sure you want to delete this passenger?")) return;
 
-            if (response.ok) {
-                fetchPassengers(); // Refresh the table
-            } else {
-                alert("Failed to delete passenger.");
+            try {
+                const response = await fetch(`/passengers/${id}`, { method: 'DELETE' });
+
+                if (response.ok) {
+                    fetchPassengers();
+                } else {
+                    const errorMsg = await response.json();
+                    alert("Failed to delete passenger: " + errorMsg.error);
+                }
+            } catch (error) {
+                console.error('Error deleting passenger:', error);
+                alert("Error while deleting passenger.");
             }
         }
 
-        // Initial fetch
-        fetchPassengers();
+        document.addEventListener("DOMContentLoaded", fetchPassengers);
     </script>
 </body>
 </html>
