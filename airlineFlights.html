@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airline Flights Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Manage Airline-Flight Relationships</h1>
+        <nav>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section>
+        <h2>Existing Airline-Flight Assignments</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment ID</th>
+                    <th>Airline</th>
+                    <th>Flight</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="airlineFlightsTableBody">
+                <!-- Records will be inserted here dynamically -->
+            </tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>Add New Airline-Flight Assignment</h2>
+        <form id="airlineFlightsForm">
+            <label for="airlineID">Select Airline:</label>
+            <select id="airlineID" name="airlineID" required></select><br><br>
+
+            <label for="flightID">Select Flight:</label>
+            <select id="flightID" name="flightID" required></select><br><br>
+
+            <button type="submit">Add Assignment</button>
+        </form>
+        <p id="errorMessage" style="color: red;"></p>
+    </section>
+
+    <script>
+        async function fetchAirlineFlights() {
+            const response = await fetch('/airlineFlights');
+            const airlineFlights = await response.json();
+
+            const tableBody = document.getElementById('airlineFlightsTableBody');
+            tableBody.innerHTML = '';
+
+            airlineFlights.forEach(assignment => {
+                const row = `<tr>
+                    <td>${assignment.assignmentID}</td>
+                    <td>${assignment.airlineName}</td>
+                    <td>${assignment.flightDetails}</td>
+                    <td>
+                        <button onclick="deleteAssignment(${assignment.assignmentID})">Delete</button>
+                    </td>
+                </tr>`;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        async function fetchDropdownData() {
+            const airlinesResponse = await fetch('/airlines');
+            const flightsResponse = await fetch('/flights');
+            const airlines = await airlinesResponse.json();
+            const flights = await flightsResponse.json();
+
+            const airlineDropdown = document.getElementById('airlineID');
+            const flightDropdown = document.getElementById('flightID');
+
+            airlineDropdown.innerHTML = airlines.map(a => `<option value="${a.airlineID}">${a.airlineName}</option>`).join('');
+            flightDropdown.innerHTML = flights.map(f => `<option value="${f.flightID}">${f.departureAirport} to ${f.arrivalAirport} (${f.departureTime})</option>`).join('');
+        }
+
+        document.getElementById("airlineFlightsForm").addEventListener("submit", async function(e) {
+            e.preventDefault();
+            
+            const data = {
+                airlineID: document.getElementById("airlineID").value,
+                flightID: document.getElementById("flightID").value
+            };
+
+            const response = await fetch("/airlineFlights", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                document.getElementById("errorMessage").textContent = result.error;
+            } else {
+                document.getElementById("airlineFlightsForm").reset();
+                document.getElementById("errorMessage").textContent = "";
+                fetchAirlineFlights();
+            }
+        });
+
+        async function deleteAssignment(id) {
+            if (!confirm("Are you sure you want to remove this assignment?")) return;
+
+            await fetch(`/airlineFlights/${id}`, { method: "DELETE" });
+            fetchAirlineFlights();
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            fetchAirlineFlights();
+            fetchDropdownData();
+        });
+    </script>
+
+    <footer>
+        <p>&copy; 2025 Airline Management System</p>
+    </footer>
+</body>
+</html>

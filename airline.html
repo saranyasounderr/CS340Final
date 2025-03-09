@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airline Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Airline Management</h1>
+        <nav>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section>
+        <h2>Manage Airlines</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Airline ID</th>
+                    <th>Airline Name</th>
+                    <th>Contact Email</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="airlineTableBody">
+                <!-- Airline records will be inserted here dynamically -->
+            </tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>Add / Update Airline</h2>
+        <form id="airlineForm">
+            <input type="hidden" id="airlineID">
+
+            <label for="airlineName">Airline Name:</label>
+            <input type="text" id="airlineName" name="airlineName" required><br><br>
+
+            <label for="contactEmail">Contact Email:</label>
+            <input type="email" id="contactEmail" name="contactEmail"><br><br>
+
+            <button type="submit">Save Airline</button>
+        </form>
+    </section>
+
+    <script>
+        async function fetchAirlines() {
+            const response = await fetch('/airlines');
+            const airlines = await response.json();
+
+            const tableBody = document.getElementById('airlineTableBody');
+            tableBody.innerHTML = '';
+
+            airlines.forEach(airline => {
+                const row = `<tr>
+                    <td>${airline.airlineID}</td>
+                    <td>${airline.airlineName}</td>
+                    <td>${airline.contactEmail || 'N/A'}</td>
+                    <td>
+                        <button onclick="editAirline(${airline.airlineID})">Update</button>
+                        <button onclick="deleteAirline(${airline.airlineID})">Delete</button>
+                    </td>
+                </tr>`;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        async function editAirline(id) {
+            const response = await fetch(`/airlines`);
+            const airlines = await response.json();
+            const airline = airlines.find(a => a.airlineID === id);
+
+            document.getElementById("airlineID").value = id;
+            document.getElementById("airlineName").value = airline.airlineName;
+            document.getElementById("contactEmail").value = airline.contactEmail || "";
+        }
+
+        document.getElementById("airlineForm").addEventListener("submit", async function(e) {
+            e.preventDefault();
+            
+            const airlineID = document.getElementById("airlineID").value;
+            const data = {
+                airlineName: document.getElementById("airlineName").value,
+                contactEmail: document.getElementById("contactEmail").value
+            };
+
+            const method = airlineID ? "PUT" : "POST";
+            const url = airlineID ? `/airlines/${airlineID}` : "/airlines";
+
+            const response = await fetch(url, {
+                method,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                document.getElementById("airlineForm").reset();
+                fetchAirlines();
+            } else {
+                alert("Error: Could not save airline.");
+            }
+        });
+
+        async function deleteAirline(id) {
+            if (!confirm("Are you sure you want to delete this airline?")) return;
+
+            await fetch(`/airlines/${id}`, { method: "DELETE" });
+            fetchAirlines();
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            fetchAirlines();
+        });
+    </script>
+
+    <footer>
+        <p>&copy; 2025 Airline Management System</p>
+    </footer>
+</body>
+</html>

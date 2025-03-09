@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passenger Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Passenger Management</h1>
+        <nav>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section>
+        <h2>Manage Passengers</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Passenger ID</th>
+                    <th>First Name</th>
+                    <th>Last Name</th>
+                    <th>Birth Date</th>
+                    <th>Passport Number</th>
+                    <th>Phone Number</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="passengerTableBody"></tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>Add / Update Passenger</h2>
+        <form id="passengerForm">
+            <input type="hidden" id="passengerID">
+            
+            <label for="firstName">First Name:</label>
+            <input type="text" id="firstName" name="firstName" required><br><br>
+
+            <label for="lastName">Last Name:</label>
+            <input type="text" id="lastName" name="lastName" required><br><br>
+
+            <label for="birthDate">Birth Date:</label>
+            <input type="date" id="birthDate" name="birthDate" required><br><br>
+
+            <label for="passportNum">Passport Number:</label>
+            <input type="text" id="passportNum" name="passportNum" required><br><br>
+
+            <label for="phoneNumber">Phone Number:</label>
+            <input type="text" id="phoneNumber" name="phoneNumber" required><br><br>
+
+            <button type="submit">Save</button>
+        </form>
+    </section>
+
+    <script>
+        // Fetch and display all passengers
+        async function fetchPassengers() {
+            const response = await fetch('/passengers');
+            const passengers = await response.json();
+
+            const tableBody = document.getElementById('passengerTableBody');
+            tableBody.innerHTML = '';
+
+            passengers.forEach(passenger => {
+                const row = `<tr>
+                    <td>${passenger.passengerID}</td>
+                    <td>${passenger.firstName}</td>
+                    <td>${passenger.lastName}</td>
+                    <td>${passenger.birthDate}</td>
+                    <td>${passenger.passportNum}</td>
+                    <td>${passenger.phoneNumber}</td>
+                    <td>
+                        <button onclick="editPassenger(${passenger.passengerID})">Update</button>
+                        <button onclick="deletePassenger(${passenger.passengerID})">Delete</button>
+                    </td>
+                </tr>`;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        // Edit passenger and fill form
+        async function editPassenger(id) {
+            const response = await fetch(`/passengers`);
+            const passengers = await response.json();
+            const passenger = passengers.find(p => p.passengerID === id);
+
+            document.getElementById("passengerID").value = id;
+            document.getElementById("firstName").value = passenger.firstName;
+            document.getElementById("lastName").value = passenger.lastName;
+            document.getElementById("birthDate").value = passenger.birthDate;
+            document.getElementById("passportNum").value = passenger.passportNum;
+            document.getElementById("phoneNumber").value = passenger.phoneNumber;
+        }
+
+        // Save or update passenger (depending on if passengerID is present)
+        document.getElementById("passengerForm").addEventListener("submit", async function(e) {
+            e.preventDefault();
+
+            const passengerID = document.getElementById("passengerID").value;
+            const firstName = document.getElementById("firstName").value;
+            const lastName = document.getElementById("lastName").value;
+            const birthDate = document.getElementById("birthDate").value;
+            const passportNum = document.getElementById("passportNum").value;
+            const phoneNumber = document.getElementById("phoneNumber").value;
+
+            const passengerData = {
+                firstName,
+                lastName,
+                birthDate,
+                passportNum,
+                phoneNumber
+            };
+
+            let response;
+            if (passengerID) {
+                // If passengerID exists, update the passenger
+                response = await fetch(`/passengers/${passengerID}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(passengerData)
+                });
+            } else {
+                // If passengerID does not exist, create a new passenger
+                response = await fetch('/passengers', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(passengerData)
+                });
+            }
+
+            if (response.ok) {
+                fetchPassengers(); // Refresh the table
+                document.getElementById("passengerForm").reset(); // Reset form
+            } else {
+                alert("Failed to save passenger.");
+            }
+        });
+
+        // Delete passenger
+        async function deletePassenger(id) {
+            const response = await fetch(`/passengers/${id}`, {
+                method: 'DELETE',
+            });
+
+            if (response.ok) {
+                fetchPassengers(); // Refresh the table
+            } else {
+                alert("Failed to delete passenger.");
+            }
+        }
+
+        // Initial fetch
+        fetchPassengers();
+    </script>
+</body>
+</html>

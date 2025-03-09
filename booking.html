@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Booking Management</h1>
+        <nav>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section>
+        <h2>Manage Bookings</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Booking ID</th>
+                    <th>Passenger</th>
+                    <th>Flight</th>
+                    <th>Booking Date</th>
+                    <th>Ticket Class</th>
+                    <th>Payment Status</th>
+                    <th>Seat Number</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="bookingTableBody"></tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>Add / Update Booking</h2>
+        <form id="bookingForm">
+            <input type="hidden" id="bookingID">
+
+            <label for="passengerID">Passenger:</label>
+            <select id="passengerID" required></select><br><br>
+
+            <label for="flightID">Flight:</label>
+            <select id="flightID" required></select><br><br>
+
+            <label for="bookingDate">Booking Date:</label>
+            <input type="date" id="bookingDate" required><br><br>
+
+            <label for="ticketClass">Ticket Class:</label>
+            <select id="ticketClass" required>
+                <option value="Economy">Economy</option>
+                <option value="Business">Business</option>
+                <option value="First">First</option>
+            </select><br><br>
+
+            <label for="paymentStatus">Payment Status:</label>
+            <select id="paymentStatus" required>
+                <option value="Paid">Paid</option>
+                <option value="Pending">Pending</option>
+                <option value="Failed">Failed</option>
+            </select><br><br>
+
+            <label for="seatNumber">Seat Number:</label>
+            <input type="text" id="seatNumber"><br><br>
+
+            <button type="submit">Save Booking</button>
+        </form>
+        <p id="errorMessage" style="color: red;"></p>
+    </section>
+
+    <script>
+        async function fetchBookings() {
+            const response = await fetch('/bookings');
+            const bookings = await response.json();
+
+            const tableBody = document.getElementById('bookingTableBody');
+            tableBody.innerHTML = '';
+
+            bookings.forEach(booking => {
+                const row = `<tr>
+                    <td>${booking.bookingID}</td>
+                    <td>${booking.passengerName}</td>
+                    <td>${booking.flightDetails}</td>
+                    <td>${booking.bookingDate}</td>
+                    <td>${booking.ticketClass}</td>
+                    <td>${booking.paymentStatus}</td>
+                    <td>${booking.seatNumber || 'N/A'}</td>
+                    <td>
+                        <button onclick="editBooking(${booking.bookingID})">Update</button>
+                        <button onclick="deleteBooking(${booking.bookingID})">Delete</button>
+                    </td>
+                </tr>`;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        async function fetchDropdownData() {
+            const passengersResponse = await fetch('/passengers');
+            const flightsResponse = await fetch('/flights');
+            const passengers = await passengersResponse.json();
+            const flights = await flightsResponse.json();
+
+            document.getElementById('passengerID').innerHTML = passengers.map(p => `<option value="${p.passengerID}">${p.firstName} ${p.lastName}</option>`).join('');
+            document.getElementById('flightID').innerHTML = flights.map(f => `<option value="${f.flightID}">${f.departureAirport} to ${f.arrivalAirport} (${f.departureTime})</option>`).join('');
+        }
+
+        async function editBooking(id) {
+            const response = await fetch(`/bookings/${id}`);
+            const booking = await response.json();
+
+            document.getElementById("bookingID").value = id;
+            document.getElementById("passengerID").value = booking.passengerID;
+            document.getElementById("flightID").value = booking.flightID;
+            document.getElementById("bookingDate").value = booking.bookingDate;
+            document.getElementById("ticketClass").value = booking.ticketClass;
+            document.getElementById("paymentStatus").value = booking.paymentStatus;
+            document.getElementById("seatNumber").value = booking.seatNumber || "";
+        }
+
+        document.getElementById("bookingForm").addEventListener("submit", async function(e) {
+            e.preventDefault();
+
+            const bookingID = document.getElementById("bookingID").value;
+            const data = {
+                passengerID: document.getElementById("passengerID").value,
+                flightID: document.getElementById("flightID").value,
+                bookingDate: document.getElementById("bookingDate").value,
+                ticketClass: document.getElementById("ticketClass").value,
+                paymentStatus: document.getElementById("paymentStatus").value,
+                seatNumber: document.getElementById("seatNumber").value
+            };
+
+            const method = bookingID ? "PUT" : "POST";
+            const url = bookingID ? `/bookings/${bookingID}` : "/bookings";
+
+            const response = await fetch(url, {
+                method,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                const result = await response.json();
+                document.getElementById("errorMessage").textContent = result.error;
+            } else {
+                document.getElementById("bookingForm").reset();
+                document.getElementById("bookingID").value = ""; // Clear hidden field
+                document.getElementById("errorMessage").textContent = "";
+                fetchBookings();
+            }
+        });
+
+        async function deleteBooking(id) {
+            if (!confirm("Are you sure you want to delete this booking?")) return;
+
+            await fetch(`/bookings/${id}`, { method: "DELETE" });
+            fetchBookings();
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            fetchBookings();
+            fetchDropdownData();
+        });
+    </script>
+
+    <footer>
+        <p>&copy; 2025 Airline Management System</p>
+    </footer>
+</body>
+</html>

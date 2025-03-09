@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Flight Management</h1>
+        <nav>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section>
+        <h2>Manage Flights</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Flight ID</th>
+                    <th>Airlines</th>
+                    <th>Departure Airport</th>
+                    <th>Arrival Airport</th>
+                    <th>Departure Time</th>
+                    <th>Arrival Time</th>
+                    <th>Total Capacity</th>
+                    <th>Available Seats</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="flightsTableBody">
+                <!-- Flight records will be inserted here dynamically -->
+            </tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>Add / Update Flight</h2>
+        <form id="flightForm">
+            <input type="hidden" id="flightID">
+
+            <label for="airlineID">Airline:</label>
+            <select id="airlineID" name="airlineID" required></select><br><br>
+
+            <label for="departureAirport">Departure Airport:</label>
+            <input type="text" id="departureAirport" name="departureAirport" required><br><br>
+
+            <label for="arrivalAirport">Arrival Airport:</label>
+            <input type="text" id="arrivalAirport" name="arrivalAirport" required><br><br>
+
+            <label for="departureTime">Departure Time:</label>
+            <input type="datetime-local" id="departureTime" name="departureTime" required><br><br>
+
+            <label for="arrivalTime">Arrival Time:</label>
+            <input type="datetime-local" id="arrivalTime" name="arrivalTime" required><br><br>
+
+            <label for="totalCapacity">Total Capacity:</label>
+            <input type="number" id="totalCapacity" name="totalCapacity" required><br><br>
+
+            <label for="availableSeats">Available Seats:</label>
+            <input type="number" id="availableSeats" name="availableSeats" required><br><br>
+
+            <button type="submit">Save Flight</button>
+        </form>
+    </section>
+
+    <script>
+        async function fetchFlights() {
+            const response = await fetch('/flights');
+            const flights = await response.json();
+
+            const tableBody = document.getElementById('flightsTableBody');
+            tableBody.innerHTML = '';
+
+            flights.forEach(flight => {
+                const row = `<tr>
+                    <td>${flight.flightID}</td>
+                    <td>${flight.airlineName}</td>
+                    <td>${flight.departureAirport}</td>
+                    <td>${flight.arrivalAirport}</td>
+                    <td>${flight.departureTime}</td>
+                    <td>${flight.arrivalTime}</td>
+                    <td>${flight.totalCapacity}</td>
+                    <td>${flight.availableSeats}</td>
+                    <td>
+                        <button onclick="editFlight(${flight.flightID})">Update</button>
+                        <button onclick="deleteFlight(${flight.flightID})">Delete</button>
+                    </td>
+                </tr>`;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        async function fetchAirlines() {
+            const response = await fetch('/airlines');
+            const airlines = await response.json();
+
+            const airlineDropdown = document.getElementById('airlineID');
+            airlineDropdown.innerHTML = airlines.map(a => `<option value="${a.airlineID}">${a.airlineName}</option>`).join('');
+        }
+
+        async function editFlight(id) {
+            const response = await fetch(`/flights`);
+            const flights = await response.json();
+            const flight = flights.find(f => f.flightID === id);
+
+            document.getElementById("flightID").value = id;
+            document.getElementById("airlineID").value = flight.airlineID;
+            document.getElementById("departureAirport").value = flight.departureAirport;
+            document.getElementById("arrivalAirport").value = flight.arrivalAirport;
+            document.getElementById("departureTime").value = flight.departureTime.slice(0, 16);
+            document.getElementById("arrivalTime").value = flight.arrivalTime.slice(0, 16);
+            document.getElementById("totalCapacity").value = flight.totalCapacity;
+            document.getElementById("availableSeats").value = flight.availableSeats;
+        }
+
+        document.getElementById("flightForm").addEventListener("submit", async function(e) {
+            e.preventDefault();
+            
+            const flightID = document.getElementById("flightID").value;
+            const data = {
+                airlineID: document.getElementById("airlineID").value,
+                departureAirport: document.getElementById("departureAirport").value,
+                arrivalAirport: document.getElementById("arrivalAirport").value,
+                departureTime: document.getElementById("departureTime").value,
+                arrivalTime: document.getElementById("arrivalTime").value,
+                totalCapacity: document.getElementById("totalCapacity").value,
+                availableSeats: document.getElementById("availableSeats").value
+            };
+
+            const method = flightID ? "PUT" : "POST";
+            const url = flightID ? `/flights/${flightID}` : "/flights";
+
+            await fetch(url, {
+                method,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            });
+
+            document.getElementById("flightForm").reset();
+            fetchFlights();
+        });
+
+        async function deleteFlight(id) {
+            if (!confirm("Are you sure you want to delete this flight?")) return;
+
+            await fetch(`/flights/${id}`, { method: "DELETE" });
+            fetchFlights();
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            fetchFlights();
+            fetchAirlines();
+        });
+    </script>
+
+    <footer>
+        <p>&copy; 2025 Airline Management System</p>
+    </footer>
+</body>
+</html>
