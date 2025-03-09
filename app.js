@@ -1,34 +1,19 @@
-// Import necessary modules
 const express = require('express');
 const path = require('path');
-const db = require('./database/db-connector'); // Use the db-connector module for the DB connection
+const db = require('./database/db-connector'); // Ensure correct DB connection
+
 
 const app = express();
-const PORT = 2903; // Change if needed
+const PORT = 2345;
 
 // Middleware to parse JSON and URL-encoded data
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 // Serve index.html
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-}).on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-        console.error(`Port ${PORT} is already in use.`);
-    } else {
-        console.error('Server error:', err);
-    }
-});
-
-// Serve static files from the same directory
-app.use(express.static(__dirname));
-
-
-
-
 
 // ------------------ PASSENGER ROUTES ------------------
 
@@ -40,33 +25,36 @@ app.get('/passengers', (req, res) => {
     });
 });
 
-// Add a new passenger
-app.post('/passengers', (req, res) => {
-    const { firstName, lastName, birthDate, passportNum, phoneNumber } = req.body;
+// Get single passenger
+app.get('/passengers/:id', (req, res) => {
+    const passengerID = parseInt(req.params.id, 10);
+    console.log("Fetching passenger with ID:", passengerID);
 
-    if (!firstName || !lastName || !birthDate || !passportNum || !phoneNumber) {
-        return res.status(400).json({ error: 'All fields are required' });
+    if (isNaN(passengerID)) {
+        return res.status(400).json({ error: "Invalid Passenger ID" });
     }
 
-    const query = `
-        INSERT INTO Passenger (firstName, lastName, birthDate, passportNum, phoneNumber)
-        VALUES (?, ?, ?, ?, ?)
-    `;
-
-    db.query(query, [firstName, lastName, birthDate, passportNum, phoneNumber], (err, result) => {
+    db.query('SELECT * FROM Passenger WHERE passengerID = ?', [passengerID], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
 
-        res.json({ message: 'Passenger added successfully', passengerID: result.insertId });
+        if (results.length === 0) {
+            return res.status(404).json({ error: "Passenger not found" });
+        }
+
+        res.json(results[0]);
     });
 });
 
-// Update an existing passenger
 app.put('/passengers/:id', (req, res) => {
+    const passengerID = parseInt(req.params.id, 10);
     const { firstName, lastName, birthDate, passportNum, phoneNumber } = req.body;
-    const passengerID = req.params.id;
 
-    if (!firstName || !lastName || !birthDate || !passportNum || !phoneNumber) {
-        return res.status(400).json({ error: 'All fields are required' });
+    console.log("Received update request for Passenger ID:", passengerID);
+    console.log("Update data received:", req.body);
+
+    if (isNaN(passengerID)) {
+        console.log("Invalid Passenger ID received.");
+        return res.status(400).json({ error: "Invalid Passenger ID" });
     }
 
     const query = `
@@ -76,133 +64,216 @@ app.put('/passengers/:id', (req, res) => {
     `;
 
     db.query(query, [firstName, lastName, birthDate, passportNum, phoneNumber, passengerID], (err, result) => {
-        if (err) return res.status(500).json({ error: err.message });
-
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Passenger not found' });
+        if (err) {
+            console.error("Database error:", err);
+            return res.status(500).json({ error: err.message });
         }
 
-        res.json({ message: 'Passenger updated successfully' });
+        console.log("Update result:", result);
+
+        if (result.affectedRows === 0) {
+            console.log("No changes were made. Either the ID was not found or the data was the same.");
+            return res.status(404).json({ error: "Passenger not found or no changes made" });
+        }
+
+        res.json({ message: "Passenger updated successfully" });
     });
 });
 
-// Delete a passenger
 app.delete('/passengers/:id', (req, res) => {
-    const passengerID = req.params.id;
+    const passengerID = parseInt(req.params.id, 10);
+    console.log("Received delete request for Passenger ID:", passengerID);
+
+    if (isNaN(passengerID)) {
+        console.log("Invalid Passenger ID received.");
+        return res.status(400).json({ error: "Invalid Passenger ID" });
+    }
 
     const query = `DELETE FROM Passenger WHERE passengerID = ?`;
 
     db.query(query, [passengerID], (err, result) => {
-        if (err) return res.status(500).json({ error: err.message });
-
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Passenger not found' });
+        if (err) {
+            console.error("Database error:", err);
+            return res.status(500).json({ error: err.message });
         }
 
-        res.json({ message: 'Passenger deleted successfully' });
+        console.log("Delete result:", result);
+
+        if (result.affectedRows === 0) {
+            console.log("Passenger not found.");
+            return res.status(404).json({ error: "Passenger not found" });
+        }
+
+        console.log("Passenger deleted successfully.");
+        res.json({ message: "Passenger deleted successfully" });
     });
 });
 
-// ------------------ AIRLINE ROUTES ------------------
-
-app.get('/airlines', (req, res) => {
-    db.query('SELECT * FROM Airline', (err, results) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(results);
-    });
-});
 
 // ------------------ FLIGHT ROUTES ------------------
 
+// Get all flights
 app.get('/flights', (req, res) => {
-    db.query('SELECT * FROM Flights', (err, results) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(results);
-    });
-});
-
-// ------------------ AIRLINE-FLIGHT RELATIONSHIP ROUTES ------------------
-
-app.get('/airlineFlights', (req, res) => {
     const query = `
-        SELECT af.assignmentID, a.airlineName, 
-               CONCAT(f.departureAirport, ' to ', f.arrivalAirport, ' (', f.departureTime, ')') AS flightDetails
-        FROM AirlineFlights af
-        JOIN Airline a ON af.airlineID = a.airlineID
-        JOIN Flights f ON af.flightID = f.flightID
+        SELECT f.flightID, COALESCE(a.airlineName, 'Unknown Airline') AS airlineName, 
+               f.departureAirport, f.arrivalAirport, 
+               DATE_FORMAT(f.departureTime, '%Y-%m-%d %H:%i') AS departureTime, 
+               DATE_FORMAT(f.arrivalTime, '%Y-%m-%d %H:%i') AS arrivalTime,
+               f.totalCapacity, f.availableSeats
+        FROM Flights f
+        LEFT JOIN Airline a ON f.airlineID = a.airlineID
     `;
 
-    db.query(query, (err, results) => {
+    db.query(query, [], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results);
     });
 });
 
-app.post('/airlineFlights', (req, res) => {
-    const { airlineID, flightID } = req.body;
+// Update flight
+app.put('/flights/:id', (req, res) => {
+    const flightID = parseInt(req.params.id, 10);
+    const { airlineID, departureAirport, arrivalAirport, departureTime, arrivalTime, totalCapacity, availableSeats } = req.body;
 
-    if (!airlineID || !flightID) {
-        return res.status(400).json({ error: 'Both airline and flight must be selected' });
-    }
+    if (isNaN(flightID)) return res.status(400).json({ error: "Invalid Flight ID" });
 
-    const checkQuery = `SELECT * FROM AirlineFlights WHERE airlineID = ? AND flightID = ?`;
+    const query = `
+        UPDATE Flights SET airlineID = ?, departureAirport = ?, arrivalAirport = ?, 
+                          departureTime = ?, arrivalTime = ?, totalCapacity = ?, availableSeats = ?
+        WHERE flightID = ?
+    `;
 
-    db.query(checkQuery, [airlineID, flightID], (err, results) => {
-        if (err) return res.status(500).json({ error: err.message });
-
-        if (results.length > 0) {
-            return res.status(400).json({ error: 'This airline-flight assignment already exists' });
-        }
-
-        const insertQuery = `INSERT INTO AirlineFlights (airlineID, flightID) VALUES (?, ?)`;
-
-        db.query(insertQuery, [airlineID, flightID], (err, result) => {
+    db.query(query, [airlineID, departureAirport, arrivalAirport, departureTime, arrivalTime, totalCapacity, availableSeats, flightID],
+        (err, result) => {
             if (err) return res.status(500).json({ error: err.message });
-
-            res.json({ message: 'Airline-Flight assignment added successfully', assignmentID: result.insertId });
-        });
-    });
-});
-
-app.delete('/airlineFlights/:id', (req, res) => {
-    const assignmentID = req.params.id;
-
-    const query = `DELETE FROM AirlineFlights WHERE assignmentID = ?`;
-
-    db.query(query, [assignmentID], (err, result) => {
-        if (err) return res.status(500).json({ error: err.message });
-
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Assignment not found' });
+            if (result.affectedRows === 0) return res.status(404).json({ error: "Flight not found" });
+            res.json({ message: "Flight updated successfully" });
         }
-
-        res.json({ message: 'Airline-Flight assignment deleted successfully' });
-    });
+    );
 });
 
 // ------------------ BOOKINGS ROUTES ------------------
-
+// Get all bookings
 app.get('/bookings', (req, res) => {
     const query = `
-        SELECT b.bookingID, p.firstName AS passengerName, 
+        SELECT b.bookingID, b.passengerID, b.flightID,
+               p.firstName AS passengerName, 
                CONCAT(f.departureAirport, ' to ', f.arrivalAirport, ' (', f.departureTime, ')') AS flightDetails, 
                b.bookingDate, b.ticketClass, b.paymentStatus, b.seatNumber
         FROM Booking b
         JOIN Passenger p ON b.passengerID = p.passengerID
         JOIN Flights f ON b.flightID = f.flightID
     `;
+
     db.query(query, (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results);
     });
 });
 
-// Add a new booking
+// Get a single booking by ID
+app.get('/bookings/:id', (req, res) => {
+    const bookingID = parseInt(req.params.id, 10);
+    console.log("Fetching booking with ID:", bookingID);
+
+    if (isNaN(bookingID)) {
+        return res.status(400).json({ error: "Invalid Booking ID" });
+    }
+
+    const query = `
+        SELECT b.*, p.firstName, p.lastName, f.departureAirport, f.arrivalAirport 
+        FROM Booking b
+        JOIN Passenger p ON b.passengerID = p.passengerID
+        JOIN Flights f ON b.flightID = f.flightID
+        WHERE b.bookingID = ?
+    `;
+
+    db.query(query, [bookingID], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        if (results.length === 0) {
+            return res.status(404).json({ error: "Booking not found" });
+        }
+
+        res.json(results[0]);
+    });
+});
+
+// Update booking
+app.put('/bookings/:id', (req, res) => {
+    const bookingID = parseInt(req.params.id, 10);
+    const { passengerID, flightID, bookingDate, ticketClass, paymentStatus, seatNumber } = req.body;
+
+    console.log("Received update request for Booking ID:", bookingID);
+    console.log("Update data received:", req.body);
+
+    if (isNaN(bookingID)) {
+        console.log("Invalid Booking ID received.");
+        return res.status(400).json({ error: "Invalid Booking ID" });
+    }
+
+    const query = `
+        UPDATE Booking 
+        SET passengerID = ?, flightID = ?, bookingDate = ?, ticketClass = ?, 
+            paymentStatus = ?, seatNumber = ?
+        WHERE bookingID = ?
+    `;
+
+    db.query(query, [passengerID, flightID, bookingDate, ticketClass, paymentStatus, seatNumber, bookingID], (err, result) => {
+        if (err) {
+            console.error("Database error:", err);
+            return res.status(500).json({ error: err.message });
+        }
+
+        console.log("Update result:", result);
+
+        if (result.affectedRows === 0) {
+            console.log("No changes were made. Either the ID was not found or the data was the same.");
+            return res.status(404).json({ error: "Booking not found or no changes made" });
+        }
+
+        res.json({ message: "Booking updated successfully" });
+    });
+});
+
+// Delete a booking
+app.delete('/bookings/:id', (req, res) => {
+    const bookingID = parseInt(req.params.id, 10);
+    console.log("Received delete request for Booking ID:", bookingID);
+
+    if (isNaN(bookingID)) {
+        console.log("Invalid Booking ID received.");
+        return res.status(400).json({ error: "Invalid Booking ID" });
+    }
+
+    const query = `DELETE FROM Booking WHERE bookingID = ?`;
+
+    db.query(query, [bookingID], (err, result) => {
+        if (err) {
+            console.error("Database error:", err);
+            return res.status(500).json({ error: err.message });
+        }
+
+        console.log("Delete result:", result);
+
+        if (result.affectedRows === 0) {
+            console.log("Booking not found.");
+            return res.status(404).json({ error: "Booking not found" });
+        }
+
+        console.log("Booking deleted successfully.");
+        res.json({ message: "Booking deleted successfully" });
+    });
+});
+
 app.post('/bookings', (req, res) => {
     const { passengerID, flightID, bookingDate, ticketClass, paymentStatus, seatNumber } = req.body;
 
+    console.log("Received new booking request:", req.body);  // Log incoming booking data
+
+    // Validate data before inserting into the database
     if (!passengerID || !flightID || !bookingDate || !ticketClass || !paymentStatus) {
-        return res.status(400).json({ error: 'All required fields must be provided' });
+        return res.status(400).json({ error: "All required fields must be provided" });
     }
 
     const query = `
@@ -211,51 +282,38 @@ app.post('/bookings', (req, res) => {
     `;
 
     db.query(query, [passengerID, flightID, bookingDate, ticketClass, paymentStatus, seatNumber], (err, result) => {
-        if (err) return res.status(500).json({ error: err.message });
-
-        res.json({ message: 'Booking added successfully', bookingID: result.insertId });
-    });
-});
-
-// Update a booking
-app.put('/bookings/:id', (req, res) => {
-    const { passengerID, flightID, bookingDate, ticketClass, paymentStatus, seatNumber } = req.body;
-    const bookingID = req.params.id;
-
-    if (!passengerID || !flightID || !bookingDate || !ticketClass || !paymentStatus) {
-        return res.status(400).json({ error: 'All required fields must be provided' });
-    }
-
-    const query = `
-        UPDATE Booking 
-        SET passengerID = ?, flightID = ?, bookingDate = ?, ticketClass = ?, paymentStatus = ?, seatNumber = ?
-        WHERE bookingID = ?
-    `;
-
-    db.query(query, [passengerID, flightID, bookingDate, ticketClass, paymentStatus, seatNumber, bookingID], (err, result) => {
-        if (err) return res.status(500).json({ error: err.message });
-
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Booking not found' });
+        if (err) {
+            console.error("Error saving booking:", err);  // Log error details
+            return res.status(500).json({ error: err.message });
         }
 
-        res.json({ message: 'Booking updated successfully' });
+        console.log("Booking created successfully:", result.insertId);  // Log the inserted booking ID
+        res.json({ message: "Booking created successfully", bookingID: result.insertId });
     });
 });
 
-// Delete a booking
-app.delete('/bookings/:id', (req, res) => {
-    const bookingID = req.params.id;
 
-    const query = `DELETE FROM Booking WHERE bookingID = ?`;
+// ------------------ STATIC FILES ------------------
+// Serve static files from the same directory (Keep this below API routes)
+app.use(express.static(__dirname));
 
-    db.query(query, [bookingID], (err, result) => {
-        if (err) return res.status(500).json({ error: err.message });
-
-        res.json({ message: 'Booking deleted successfully' });
-    });
+// ------------------ START THE SERVER ------------------
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+}).on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+        console.error(`Port ${PORT} is already in use.`);
+    } else {
+        console.error('Server error:', err);
+    }
 });
 
-// ------------------ SERVER START ------------------
+// ------------------ DEBUGGING TOOL ------------------
+console.log("Loaded routes:");
+app._router.stack.forEach((r) => {
+    if (r.route && r.route.path) {
+        console.log(r.route.path);
+    }
+});
 
-
+module.exports = app;
