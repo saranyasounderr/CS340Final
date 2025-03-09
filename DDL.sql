@@ -40,7 +40,7 @@ CREATE TABLE Flights (
     arrivalTime DATETIME NOT NULL,
     totalCapacity INT NOT NULL CHECK (totalCapacity > 0),
     availableSeats INT NOT NULL CHECK (availableSeats >= 0),
-    FOREIGN KEY (airlineID) REFERENCES Airline(airlineID) ON DELETE CASCADE
+    FOREIGN KEY (airlineID) REFERENCES Airline(airlineID) ON DELETE RESTRICT  -- Change from CASCADE to RESTRICT
 );
 
 -- Create Booking Table
@@ -52,8 +52,8 @@ CREATE TABLE Booking (
     ticketClass ENUM('Economy', 'Business', 'First') NOT NULL,
     paymentStatus ENUM('Paid', 'Pending', 'Failed') NOT NULL,
     seatNumber VARCHAR(10),
-    FOREIGN KEY (passengerID) REFERENCES Passenger(passengerID) ON DELETE CASCADE,
-    FOREIGN KEY (flightID) REFERENCES Flights(flightID) ON DELETE CASCADE
+    FOREIGN KEY (passengerID) REFERENCES Passenger(passengerID) ON DELETE RESTRICT,  -- Change from CASCADE to RESTRICT
+    FOREIGN KEY (flightID) REFERENCES Flights(flightID) ON DELETE RESTRICT  -- Change from CASCADE to RESTRICT
 );
 
 -- Create Many-to-Many Relationship: AirlineFlights Table
