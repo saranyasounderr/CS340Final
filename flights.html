@@ -22,7 +22,7 @@
             <thead>
                 <tr>
                     <th>Flight ID</th>
-                    <th>Airlines</th>
+                    <th>Airline</th>
                     <th>Departure Airport</th>
                     <th>Arrival Airport</th>
                     <th>Departure Time</th>
@@ -69,38 +69,69 @@
     </section>
 
     <script>
+        // ✅ Format Date as YYYY/MM/DD HH:MM AM/PM
+        function formatDateTime(dateString) {
+            if (!dateString) return "N/A"; // Handle empty values
+
+            const date = new Date(dateString);
+            
+            // Format as YYYY/MM/DD HH:MM AM/PM
+            const formattedDate = date.getFullYear() + '/' + 
+                                  String(date.getMonth() + 1).padStart(2, '0') + '/' + 
+                                  String(date.getDate()).padStart(2, '0') + ' ' +
+                                  date.toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit', hour12: true });
+
+            return formattedDate;
+        }
+
         async function fetchFlights() {
-            const response = await fetch('/flights');
-            const flights = await response.json();
+            try {
+                const response = await fetch('/flights');
+                const flights = await response.json();
 
-            const tableBody = document.getElementById('flightsTableBody');
-            tableBody.innerHTML = '';
+                const tableBody = document.getElementById('flightsTableBody');
+                tableBody.innerHTML = '';
 
-            flights.forEach(flight => {
-                const row = `<tr>
-                    <td>${flight.flightID}</td>
-                    <td>${flight.airlineName}</td>
-                    <td>${flight.departureAirport}</td>
-                    <td>${flight.arrivalAirport}</td>
-                    <td>${flight.departureTime}</td>
-                    <td>${flight.arrivalTime}</td>
-                    <td>${flight.totalCapacity}</td>
-                    <td>${flight.availableSeats}</td>
-                    <td>
-                        <button onclick="editFlight(${flight.flightID})">Update</button>
-                        <button onclick="deleteFlight(${flight.flightID})">Delete</button>
-                    </td>
-                </tr>`;
-                tableBody.innerHTML += row;
-            });
+                flights.forEach(flight => {
+                    const row = `<tr>
+                        <td>${flight.flightID}</td>
+                        <td>${flight.airlineName}</td>
+                        <td>${flight.departureAirport}</td>
+                        <td>${flight.arrivalAirport}</td>
+                        <td>${formatDateTime(flight.departureTime)}</td> <!-- 👈 Uses formatted date -->
+                        <td>${formatDateTime(flight.arrivalTime)}</td>  <!-- 👈 Uses formatted date -->
+                        <td>${flight.totalCapacity}</td>
+                        <td>${flight.availableSeats}</td>
+                        <td>
+                            <button onclick="editFlight(${flight.flightID})">Update</button>
+                            <button onclick="deleteFlight(${flight.flightID})">Delete</button>
+                        </td>
+                    </tr>`;
+                    tableBody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error("Error fetching flights:", error);
+            }
         }
 
         async function fetchAirlines() {
-            const response = await fetch('/airlines');
-            const airlines = await response.json();
+            try {
+                const response = await fetch('/airlines');
+                const airlines = await response.json();
 
-            const airlineDropdown = document.getElementById('airlineID');
-            airlineDropdown.innerHTML = airlines.map(a => `<option value="${a.airlineID}">${a.airlineName}</option>`).join('');
+                const airlineDropdown = document.getElementById('airlineID');
+                airlineDropdown.innerHTML = '<option value="">Select an Airline</option>'; // Add default option
+
+                airlines.forEach(airline => {
+                    const option = document.createElement("option");
+                    option.value = airline.airlineID;
+                    option.textContent = airline.airlineName;
+                    airlineDropdown.appendChild(option);
+                });
+
+            } catch (error) {
+                console.error("Error fetching airlines:", error);
+            }
         }
 
         async function editFlight(id) {
@@ -109,11 +140,11 @@
             const flight = flights.find(f => f.flightID === id);
 
             document.getElementById("flightID").value = id;
-            document.getElementById("airlineID").value = flight.airlineID;
+            document.getElementById("airlineID").value = flight.airlineID; // Ensure the correct airline is selected
             document.getElementById("departureAirport").value = flight.departureAirport;
             document.getElementById("arrivalAirport").value = flight.arrivalAirport;
-            document.getElementById("departureTime").value = flight.departureTime.slice(0, 16);
-            document.getElementById("arrivalTime").value = flight.arrivalTime.slice(0, 16);
+            document.getElementById("departureTime").value = flight.departureTime;
+            document.getElementById("arrivalTime").value = flight.arrivalTime;
             document.getElementById("totalCapacity").value = flight.totalCapacity;
             document.getElementById("availableSeats").value = flight.availableSeats;
         }
