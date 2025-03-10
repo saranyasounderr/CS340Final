@@ -111,22 +111,52 @@ app.delete('/passengers/:id', (req, res) => {
 
 
 // ------------------ FLIGHT ROUTES ------------------
+// Get all airlines for dropdown
+app.get('/airlines', (req, res) => {
+    const query = `SELECT airlineID, airlineName FROM Airline`;
+
+    db.query(query, (err, results) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(results);
+    });
+});
+
 
 // Get all flights
 app.get('/flights', (req, res) => {
     const query = `
         SELECT f.flightID, COALESCE(a.airlineName, 'Unknown Airline') AS airlineName, 
-               f.departureAirport, f.arrivalAirport, 
-               DATE_FORMAT(f.departureTime, '%Y-%m-%d %H:%i') AS departureTime, 
-               DATE_FORMAT(f.arrivalTime, '%Y-%m-%d %H:%i') AS arrivalTime,
+               f.airlineID, f.departureAirport, f.arrivalAirport, 
+               DATE_FORMAT(f.departureTime, '%Y-%m-%dT%H:%i') AS departureTime, 
+               DATE_FORMAT(f.arrivalTime, '%Y-%m-%dT%H:%i') AS arrivalTime,
                f.totalCapacity, f.availableSeats
         FROM Flights f
         LEFT JOIN Airline a ON f.airlineID = a.airlineID
     `;
 
-    db.query(query, [], (err, results) => {
+    db.query(query, (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results);
+    });
+});
+//add a new flight
+app.post('/flights', (req, res) => {
+    const { airlineID, departureAirport, arrivalAirport, departureTime, arrivalTime, totalCapacity, availableSeats } = req.body;
+
+    if (!airlineID || !departureAirport || !arrivalAirport || !departureTime || !arrivalTime || !totalCapacity || !availableSeats) {
+        return res.status(400).json({ error: "All fields are required" });
+    }
+
+    const query = `
+        INSERT INTO Flights (airlineID, departureAirport, arrivalAirport, departureTime, arrivalTime, totalCapacity, availableSeats)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    db.query(query, [airlineID, departureAirport, arrivalAirport, departureTime, arrivalTime, totalCapacity, availableSeats], (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: "Flight added successfully", flightID: result.insertId });
     });
 });
 
@@ -135,21 +165,52 @@ app.put('/flights/:id', (req, res) => {
     const flightID = parseInt(req.params.id, 10);
     const { airlineID, departureAirport, arrivalAirport, departureTime, arrivalTime, totalCapacity, availableSeats } = req.body;
 
-    if (isNaN(flightID)) return res.status(400).json({ error: "Invalid Flight ID" });
+    if (isNaN(flightID)) {
+        return res.status(400).json({ error: "Invalid Flight ID" });
+    }
+
+    // Validate required fields
+    if (!airlineID || !departureAirport || !arrivalAirport || !departureTime || !arrivalTime || !totalCapacity || !availableSeats) {
+        return res.status(400).json({ error: "All fields are required for update" });
+    }
 
     const query = `
-        UPDATE Flights SET airlineID = ?, departureAirport = ?, arrivalAirport = ?, 
-                          departureTime = ?, arrivalTime = ?, totalCapacity = ?, availableSeats = ?
+        UPDATE Flights 
+        SET airlineID = ?, departureAirport = ?, arrivalAirport = ?, 
+            departureTime = ?, arrivalTime = ?, totalCapacity = ?, availableSeats = ?
         WHERE flightID = ?
     `;
 
-    db.query(query, [airlineID, departureAirport, arrivalAirport, departureTime, arrivalTime, totalCapacity, availableSeats, flightID],
-        (err, result) => {
-            if (err) return res.status(500).json({ error: err.message });
-            if (result.affectedRows === 0) return res.status(404).json({ error: "Flight not found" });
-            res.json({ message: "Flight updated successfully" });
+    db.query(query, [airlineID, departureAirport, arrivalAirport, departureTime, arrivalTime, totalCapacity, availableSeats, flightID], 
+    (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: "Flight not found or no changes made" });
         }
-    );
+
+        res.json({ message: "Flight updated successfully" });
+    });
+});
+//delete the flight
+app.delete('/flights/:id', (req, res) => {
+    const flightID = parseInt(req.params.id, 10);
+
+    if (isNaN(flightID)) {
+        return res.status(400).json({ error: "Invalid Flight ID" });
+    }
+
+    const query = `DELETE FROM Flights WHERE flightID = ?`;
+
+    db.query(query, [flightID], (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: "Flight not found" });
+        }
+
+        res.json({ message: "Flight deleted successfully" });
+    });
 });
 
 // ------------------ BOOKINGS ROUTES ------------------
@@ -291,6 +352,88 @@ app.post('/bookings', (req, res) => {
         res.json({ message: "Booking created successfully", bookingID: result.insertId });
     });
 });
+
+// ------------------ AIRLINES ROUTES ------------------
+
+// Get all airlines
+app.get('/airlines', (req, res) => {
+    db.query('SELECT * FROM Airline', (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+
+// Get a single airline by ID
+app.get('/airlines/:id', (req, res) => {
+    const airlineID = parseInt(req.params.id, 10);
+
+    if (isNaN(airlineID)) {
+        return res.status(400).json({ error: "Invalid Airline ID" });
+    }
+
+    db.query('SELECT * FROM Airline WHERE airlineID = ?', [airlineID], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        if (results.length === 0) {
+            return res.status(404).json({ error: "Airline not found" });
+        }
+
+        res.json(results[0]);
+    });
+});
+
+// ✅ Correctly Placed Airline Update Route (PUT)
+app.put('/airlines/:id', (req, res) => {
+    const airlineID = parseInt(req.params.id, 10);
+    const { airlineName, contactEmail } = req.body;
+
+    console.log(`Received PUT request for airline ID: ${airlineID}`);
+    console.log("Request body:", req.body);
+
+    if (isNaN(airlineID) || !airlineName) {
+        return res.status(400).json({ error: "Valid Airline ID and Name are required" });
+    }
+
+    const query = `UPDATE Airline SET airlineName = ?, contactEmail = ? WHERE airlineID = ?`;
+
+    db.query(query, [airlineName, contactEmail, airlineID], (err, result) => {
+        if (err) {
+            console.error("Database error:", err);
+            return res.status(500).json({ error: err.message });
+        }
+
+        console.log("Update result:", result);
+
+        if (result.affectedRows === 0) {
+            console.log("No rows affected. Possible ID not found.");
+            return res.status(404).json({ error: "Airline not found or no changes made" });
+        }
+
+        res.json({ message: "Airline updated successfully" });
+    });
+});
+
+// Delete an airline
+app.delete('/airlines/:id', (req, res) => {
+    const airlineID = parseInt(req.params.id, 10);
+
+    if (isNaN(airlineID)) {
+        return res.status(400).json({ error: "Invalid Airline ID" });
+    }
+
+    const query = `DELETE FROM Airline WHERE airlineID = ?`;
+
+    db.query(query, [airlineID], (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: "Airline not found" });
+        }
+
+        res.json({ message: "Airline deleted successfully" });
+    });
+});
+
 
 
 // ------------------ STATIC FILES ------------------
