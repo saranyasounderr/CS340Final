@@ -23,7 +23,7 @@
                 <tr>
                     <th>Assignment ID</th>
                     <th>Airline</th>
-                    <th>Flight</th>
+                    <th>Flight Details</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -39,8 +39,17 @@
             <label for="airlineID">Select Airline:</label>
             <select id="airlineID" name="airlineID" required></select><br><br>
 
-            <label for="flightID">Select Flight:</label>
-            <select id="flightID" name="flightID" required></select><br><br>
+            <label for="departureAirport">Departure Airport:</label>
+            <input type="text" id="departureAirport" name="departureAirport" placeholder="e.g., PDX" required><br><br>
+
+            <label for="arrivalAirport">Arrival Airport:</label>
+            <input type="text" id="arrivalAirport" name="arrivalAirport" placeholder="e.g., SFO" required><br><br>
+
+            <label for="departureTime">Departure Time:</label>
+            <input type="datetime-local" id="departureTime" name="departureTime" required><br><br>
+
+            <label for="arrivalTime">Arrival Time:</label>
+            <input type="datetime-local" id="arrivalTime" name="arrivalTime" required><br><br>
 
             <button type="submit">Add Assignment</button>
         </form>
@@ -49,36 +58,49 @@
 
     <script>
         async function fetchAirlineFlights() {
-            const response = await fetch('/airlineFlights');
-            const airlineFlights = await response.json();
+            try {
+                const response = await fetch('/airlineFlights');
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || "Unknown error fetching airline-flight assignments");
+                }
 
-            const tableBody = document.getElementById('airlineFlightsTableBody');
-            tableBody.innerHTML = '';
+                const airlineFlights = await response.json();
+                console.log("Fetched assignments:", airlineFlights);
 
-            airlineFlights.forEach(assignment => {
-                const row = `<tr>
-                    <td>${assignment.assignmentID}</td>
-                    <td>${assignment.airlineName}</td>
-                    <td>${assignment.flightDetails}</td>
-                    <td>
-                        <button onclick="deleteAssignment(${assignment.assignmentID})">Delete</button>
-                    </td>
-                </tr>`;
-                tableBody.innerHTML += row;
-            });
+                const tableBody = document.getElementById('airlineFlightsTableBody');
+                tableBody.innerHTML = '';
+
+                airlineFlights.forEach(assignment => {
+                    const row = `<tr>
+                        <td>${assignment.assignmentID}</td>
+                        <td>${assignment.airlineName}</td>
+                        <td>${assignment.flightDetails}</td>
+                        <td>
+                            <button onclick="deleteAssignment(${assignment.assignmentID})">Delete</button>
+                        </td>
+                    </tr>`;
+                    tableBody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error("Error fetching assignments:", error.message);
+                alert("Error fetching assignments: " + error.message);
+            }
         }
 
-        async function fetchDropdownData() {
-            const airlinesResponse = await fetch('/airlines');
-            const flightsResponse = await fetch('/flights');
-            const airlines = await airlinesResponse.json();
-            const flights = await flightsResponse.json();
+        async function fetchAirlines() {
+            try {
+                const response = await fetch('/airlines');
+                if (!response.ok) throw new Error("Failed to fetch airlines.");
 
-            const airlineDropdown = document.getElementById('airlineID');
-            const flightDropdown = document.getElementById('flightID');
+                const airlines = await response.json();
+                const airlineDropdown = document.getElementById('airlineID');
 
-            airlineDropdown.innerHTML = airlines.map(a => `<option value="${a.airlineID}">${a.airlineName}</option>`).join('');
-            flightDropdown.innerHTML = flights.map(f => `<option value="${f.flightID}">${f.departureAirport} to ${f.arrivalAirport} (${f.departureTime})</option>`).join('');
+                airlineDropdown.innerHTML = airlines.map(a => `<option value="${a.airlineID}">${a.airlineName}</option>`).join('');
+            } catch (error) {
+                console.error("Error fetching airlines:", error.message);
+                alert("Error fetching airlines: " + error.message);
+            }
         }
 
         document.getElementById("airlineFlightsForm").addEventListener("submit", async function(e) {
@@ -86,35 +108,59 @@
             
             const data = {
                 airlineID: document.getElementById("airlineID").value,
-                flightID: document.getElementById("flightID").value
+                departureAirport: document.getElementById("departureAirport").value,
+                arrivalAirport: document.getElementById("arrivalAirport").value,
+                departureTime: document.getElementById("departureTime").value,
+                arrivalTime: document.getElementById("arrivalTime").value
             };
 
-            const response = await fetch("/airlineFlights", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(data)
-            });
+            try {
+                const response = await fetch("/airlineFlights", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(data)
+                });
 
-            const result = await response.json();
-            if (!response.ok) {
-                document.getElementById("errorMessage").textContent = result.error;
-            } else {
-                document.getElementById("airlineFlightsForm").reset();
-                document.getElementById("errorMessage").textContent = "";
-                fetchAirlineFlights();
+                const result = await response.json();
+                if (!response.ok) {
+                    document.getElementById("errorMessage").textContent = result.error;
+                } else {
+                    document.getElementById("airlineFlightsForm").reset();
+                    document.getElementById("errorMessage").textContent = "";
+                    fetchAirlineFlights();
+                }
+            } catch (error) {
+                console.error("Error adding assignment:", error.message);
+                alert("Error adding assignment: " + error.message);
             }
         });
 
         async function deleteAssignment(id) {
             if (!confirm("Are you sure you want to remove this assignment?")) return;
+            
+            try {
+                const response = await fetch(`/airlineFlights/${id}`, { method: "DELETE" });
+                const result = await response.json();
 
-            await fetch(`/airlineFlights/${id}`, { method: "DELETE" });
-            fetchAirlineFlights();
+                if (!response.ok) {
+                    if (result.error.includes("foreign key constraint")) {
+                        alert("Cannot delete: This assignment is referenced in another table.");
+                    } else {
+                        alert(result.error || "Failed to delete assignment.");
+                    }
+                } else {
+                    alert("Assignment deleted successfully!");
+                    fetchAirlineFlights();
+                }
+            } catch (error) {
+                console.error("Error deleting assignment:", error.message);
+                alert("Error deleting assignment: " + error.message);
+            }
         }
 
         document.addEventListener("DOMContentLoaded", () => {
             fetchAirlineFlights();
-            fetchDropdownData();
+            fetchAirlines();
         });
     </script>
 
