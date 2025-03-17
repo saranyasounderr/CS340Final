@@ -8,7 +8,7 @@
 </head>
 <body>
     <header>
-        <h1>Manage Airline-Flight Relationships</h1>
+        <h1>Manage Airline-Flight Assignments</h1>
         <nav>
             <ul>
                 <li><a href="index.html">Home</a></li>
@@ -28,7 +28,7 @@
                 </tr>
             </thead>
             <tbody id="airlineFlightsTableBody">
-                <!-- Records will be inserted here dynamically -->
+                <!-- Records will be inserted dynamically -->
             </tbody>
         </table>
     </section>
@@ -44,28 +44,24 @@
             <label for="flightID">Select Flight:</label>
             <select id="flightID" name="flightID" required></select><br><br>
 
-            <button type="submit">Submit</button>
+            <button type="submit">Save Assignment</button>
             <button type="button" id="resetButton">Cancel</button>
         </form>
         <p id="errorMessage" style="color: red;"></p>
     </section>
 
     <script>
+        // Fetch airline-flight assignments
         async function fetchAirlineFlights() {
             try {
                 const response = await fetch('/airlineFlights');
                 if (!response.ok) throw new Error(`Failed to fetch: ${response.status}`);
                 
                 const airlineFlights = await response.json();
-                console.log("✅ Data received from API:", airlineFlights);
+                console.log("✅ Data received:", airlineFlights);
 
                 const tableBody = document.getElementById('airlineFlightsTableBody');
                 tableBody.innerHTML = '';
-
-                if (airlineFlights.length === 0) {
-                    tableBody.innerHTML = '<tr><td colspan="4">No assignments found</td></tr>';
-                    return;
-                }
 
                 airlineFlights.forEach(assignment => {
                     const flightDetails = `${assignment.departureAirport} → ${assignment.arrivalAirport} (${assignment.departureTime})`;
@@ -80,12 +76,14 @@
                     </tr>`;
                     tableBody.innerHTML += row;
                 });
+
             } catch (error) {
                 console.error("❌ Error fetching assignments:", error);
                 alert("Failed to load assignments.");
             }
         }
 
+        // Fetch available airlines for dropdown
         async function fetchAirlines() {
             try {
                 const response = await fetch('/airlines');
@@ -101,6 +99,7 @@
             }
         }
 
+        // Fetch available flights for dropdown
         async function fetchFlights() {
             try {
                 const response = await fetch('/flights');
@@ -116,47 +115,39 @@
             }
         }
 
+        // Edit an existing airline-flight assignment
         async function editAssignment(id) {
-    try {
-        console.log(`🔍 Fetching assignment with ID: ${id}`);
+            console.log(`🔍 Fetching assignment with ID: ${id}`);
 
-        const response = await fetch(`/airlineFlights/${id}`);
-        if (!response.ok) throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
+            try {
+                const response = await fetch(`/airlineFlights/${id}`);
+                if (!response.ok) throw new Error(`Failed to fetch assignment: ${response.status}`);
 
-        const assignment = await response.json();
-        if (!assignment.assignmentID) {
-            throw new Error("Assignment data is missing or invalid.");
-        }
+                const assignment = await response.json();
+                console.log("✅ Assignment data received:", assignment);
 
-        console.log("✅ Assignment Fetched:", assignment);
+                if (!assignment || !assignment.assignmentID) {
+                    throw new Error("Invalid assignment data received.");
+                }
 
-        document.getElementById("assignmentID").value = assignment.assignmentID;
+                // Ensure dropdowns are fully loaded before setting values
+                await fetchAirlines();
+                await fetchFlights();
 
-        // ✅ Select airline in dropdown
-        const airlineDropdown = document.getElementById("airlineID");
-        for (let option of airlineDropdown.options) {
-            if (option.value == assignment.airlineID) {
-                option.selected = true;
-                break;
+                setTimeout(() => {
+                    document.getElementById("assignmentID").value = assignment.assignmentID;
+                    document.getElementById("airlineID").value = assignment.airlineID;
+                    document.getElementById("flightID").value = assignment.flightID;
+                    document.getElementById("airlineFlightsForm").scrollIntoView({ behavior: "smooth" });
+                }, 200);
+
+            } catch (error) {
+                console.error("❌ Error fetching assignment details:", error);
+                alert("Error loading assignment. Check console.");
             }
         }
 
-        // ✅ Select flight in dropdown
-        const flightDropdown = document.getElementById("flightID");
-        for (let option of flightDropdown.options) {
-            if (option.value == assignment.flightID) {
-                option.selected = true;
-                break;
-            }
-        }
-
-    } catch (error) {
-        console.error("❌ Error fetching assignment details:", error);
-        alert("Error loading assignment. Check console.");
-    }
-}
-
-
+        // Delete assignment
         async function deleteAssignment(id) {
             if (!confirm("Are you sure you want to delete this assignment?")) return;
 
@@ -167,6 +158,7 @@
                 if (!response.ok) {
                     alert(result.error || "Failed to delete assignment.");
                 } else {
+                    alert("✅ Assignment deleted successfully!");
                     fetchAirlineFlights();
                 }
             } catch (error) {
@@ -175,11 +167,48 @@
             }
         }
 
+        // Reset form
         function resetForm() {
             document.getElementById("airlineFlightsForm").reset();
             document.getElementById("assignmentID").value = "";
             document.getElementById("errorMessage").textContent = "";
         }
+
+        // Handle form submission (Add / Update Assignment)
+        document.getElementById("airlineFlightsForm").addEventListener("submit", async function(event) {
+            event.preventDefault();
+
+            const assignmentID = document.getElementById("assignmentID").value;
+            const airlineID = document.getElementById("airlineID").value;
+            const flightID = document.getElementById("flightID").value;
+
+            if (!airlineID || !flightID) {
+                document.getElementById("errorMessage").textContent = "Both airline and flight are required.";
+                return;
+            }
+
+            const method = assignmentID ? "PUT" : "POST";
+            const url = assignmentID ? `/airlineFlights/${assignmentID}` : "/airlineFlights";
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ airlineID, flightID }),
+                });
+
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || "Failed to submit assignment");
+
+                alert("✅ Assignment saved successfully!");
+                resetForm();
+                fetchAirlineFlights();
+
+            } catch (error) {
+                console.error("❌ Error submitting form:", error);
+                document.getElementById("errorMessage").textContent = error.message;
+            }
+        });
 
         document.getElementById("resetButton").addEventListener("click", resetForm);
 

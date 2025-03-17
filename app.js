@@ -4,7 +4,7 @@ const db = require('./database/db-connector'); // Ensure correct DB connection
 
 
 const app = express();
-const PORT = 2105;
+const PORT = 2100;
 
 // Middleware to parse JSON and URL-encoded data
 app.use(express.json());
@@ -484,17 +484,52 @@ app.get('/airlineFlights', (req, res) => {
     });
 });
 
+// ✅ Fetch a single airline-flight assignment by ID
+app.get('/airlineFlights/:id', (req, res) => {
+    const assignmentID = parseInt(req.params.id, 10);
+    console.log(`📡 Received GET request for /airlineFlights/${assignmentID}`);
 
+    if (isNaN(assignmentID)) {
+        console.error("❌ Invalid assignment ID:", req.params.id);
+        return res.status(400).json({ error: "Invalid assignment ID." });
+    }
 
+    const query = `
+        SELECT af.airlineFlightID AS assignmentID, 
+               af.airlineID, 
+               af.flightID, 
+               a.airlineName, 
+               f.departureAirport, 
+               f.arrivalAirport, 
+               DATE_FORMAT(f.departureTime, '%Y-%m-%d %H:%i') AS departureTime, 
+               DATE_FORMAT(f.arrivalTime, '%Y-%m-%d %H:%i') AS arrivalTime
+        FROM AirlineFlights af
+        JOIN Airline a ON af.airlineID = a.airlineID
+        JOIN Flights f ON af.flightID = f.flightID
+        WHERE af.airlineFlightID = ?
+    `;
 
+    db.query(query, [assignmentID], (err, results) => {
+        if (err) {
+            console.error("❌ Database Error (GET /airlineFlights/:id):", err);
+            return res.status(500).json({ error: "Failed to fetch assignment.", details: err.message });
+        }
+
+        if (results.length === 0) {
+            console.warn(`⚠️ No assignment found for ID: ${assignmentID}`);
+            return res.status(404).json({ error: "Assignment not found." });
+        }
+
+        console.log("✅ Assignment found:", results[0]);
+        res.json(results[0]);
+    });
+});
 
 // ✅ Add a new airline-flight assignment
 app.post('/airlineFlights', (req, res) => {
     const { airlineID, flightID } = req.body;
 
-    // 🚨 Validate input
     if (!airlineID || !flightID) {
-        console.error("❌ Missing airlineID or flightID:", req.body);
         return res.status(400).json({ error: "Both airlineID and flightID are required." });
     }
 
@@ -506,17 +541,49 @@ app.post('/airlineFlights', (req, res) => {
             return res.status(500).json({ error: "Failed to add assignment.", details: err.message });
         }
 
-        console.log("✅ Assignment added successfully. New ID:", result.insertId);
-        res.json({ message: "Assignment added successfully", assignmentID: result.insertId });
+        res.json({ message: "✅ Assignment added successfully", assignmentID: result.insertId });
     });
 });
 
+// ✅ Update an existing airline-flight assignment
+app.put('/airlineFlights/:id', (req, res) => {
+    console.log(`📡 PUT request received for ID: ${req.params.id}`, req.body);
+
+    const assignmentID = parseInt(req.params.id, 10);
+    const airlineIDInt = parseInt(req.body.airlineID, 10);
+    const flightIDInt = parseInt(req.body.flightID, 10);
+
+    if (isNaN(assignmentID) || isNaN(airlineIDInt) || isNaN(flightIDInt)) {
+        console.error("❌ Invalid Input - Check Data:", req.body);
+        return res.status(400).json({ error: "Valid assignmentID, airlineID, and flightID are required." });
+    }
+
+    const query = `
+        UPDATE AirlineFlights 
+        SET airlineID = ?, flightID = ? 
+        WHERE airlineFlightID = ?
+    `;
+
+    db.query(query, [airlineIDInt, flightIDInt, assignmentID], (err, result) => {
+        if (err) {
+            console.error("❌ Database Error (PUT /airlineFlights):", err);
+            return res.status(500).json({ error: "Failed to update assignment.", details: err.message });
+        }
+
+        if (result.affectedRows === 0) {
+            console.warn(`⚠️ No assignment found with ID: ${assignmentID} or no changes were made.`);
+            return res.status(404).json({ error: "Assignment not found or no changes made." });
+        }
+
+        console.log("✅ Assignment updated successfully!");
+        res.json({ message: "Assignment updated successfully" });
+    });
+});
 
 // ✅ Delete an airline-flight assignment
 app.delete('/airlineFlights/:id', (req, res) => {
     const assignmentID = parseInt(req.params.id, 10);
 
-    // 🚨 Validate input
     if (isNaN(assignmentID)) {
         console.error("❌ Invalid assignment ID:", req.params.id);
         return res.status(400).json({ error: "Invalid Assignment ID" });
@@ -531,15 +598,14 @@ app.delete('/airlineFlights/:id', (req, res) => {
         }
 
         if (result.affectedRows === 0) {
-            console.log("⚠️ No assignment found with ID:", assignmentID);
-            return res.status(404).json({ error: "Assignment not found" });
+            console.warn(`⚠️ No assignment found with ID: ${assignmentID}`);
+            return res.status(404).json({ error: "Assignment not found." });
         }
 
         console.log("✅ Assignment deleted successfully:", assignmentID);
         res.json({ message: "Assignment deleted successfully" });
     });
 });
-
 
 // ------------------ STATIC FILES ------------------
 // Serve static files from the same directory (Keep this below API routes)
